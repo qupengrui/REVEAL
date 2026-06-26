@@ -1,0 +1,1 @@
+The training, testing and validation sets extracted by the scripts in the "data_process" folder have been saved in this directory.

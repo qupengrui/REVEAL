@@ -1,0 +1,8 @@
+# Project data and generated artifacts
+/data/
+/dir_logs/
+/pretrained_models/
+/save_file/
+
+.vscode/
+.idea/

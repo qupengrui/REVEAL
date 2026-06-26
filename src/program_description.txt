@@ -1,0 +1,84 @@
+数据集：new目录下：Fun_Lines_dataset——未添加func_after、flaw_lines、flaw_lines_index信息
+                Most_Information_Dateset——添加上述信息用于复现论文代码
+-----------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------
+1、Fun_Line_VD.py：未使用‘func_before’学习全局特征（特征融合方式：cat）
+
+2、Fun_Line_VD_GlobalFeats.py：仅仅调整全局特征学习部分（特征融合方式：cat）
+
+3、Fun_Line_VD_IoU_metrics.py：添加学习率调度器 + IOU、ROCAUC、PRAUC指标（特征融合方式：cat）
+models_IoU_metrics_2：IoU改用混淆矩阵计算 + 权重衰减0.1 + hid->128 + 20epoch + 早停轮数设置为5
+
+4、Fun_Line_VD_metrics_modified.py: (1)在 3 的基础上修改，将指标的计算方式全部改为 混淆矩阵计算，
+                                    且"max_func_length": 512,
+                                    "max_line_length": 16,
+                                    "max_lines": 48,
+                                    (2)"_2"修改了训练过程行级数据的收集方式——先在样本级别过滤无效行，再将有效数据聚合
+                                        epoch5 = 50、batch_size = 16、lr = 1e-5
+                                        冻结前六层、权重衰减、hid、无早停策略
+                                    (3)2025年9月17日——新修改：行级特征提取不采用之前的SEP token的表示，而是提取每行内所有token的表示，再使用平均池化聚合行内信息
+                                                    训练验证、测试阶段流程一体化，测试日志续写到训练日志文件中。
+                                        2025年9月17日，为加权损失函数添加可学习的参数α——修改错误：之前每个epoch都重新初始化一遍α，导致每一轮α都一样
+                                                    添加元素级乘法机制——无漏洞时只是按比例缩放，并非全部置零
+                                                    添加Top-5% Acc、Top-10% Acc指标
+5、Fun_Line_VD_CodeT5.py：
+    注：T5是一个“编码器-解码器”模型，而BERT/RoBERTa只是“编码器”模型，因此在处理特征提取时需要特别注意使用T5编码器部分。
+        在上面4.(2)的基础上，预训练模型 CodeBERT——>CodeT5：
+        首先：batch_size从32改为16，max_line从64改为48，不添加特殊的token；全局特征提取使用的是CodeT52（部分冻结），行级特征使用的是CodeT51（完全冻结）
+        （1）导入T5相关的库；（2）将codeBert全部替换为CodeT5；*（3）使用平均池化替代CLS token获取全局特征
+        *（4）修改维度参数：从BERT的hidden_size到T5的d_model；（5）只使用T5的encoder部分，而不是全部；
+        （6）修改了特殊token的嵌入获取方式，使用T5的shared权重；（7）移除了不必要的encoder_outputs包装；
+        *（8）如果使用第一个token作为全局特征，T5模型可能不会像Bert模型那样有效，使用加权平均池化，根据注意力掩码计算全序列特征表示
+        *（9）修改函数级分类器：扩展为更深的网络结构；添加了LayerNorm层增强训练稳定性；使用更多的隐藏层和更大的隐藏维度
+        7——训练验证测试可一体化；添加Top-5% Acc、Top-10% Acc指标
+6、Fun_line_VD_TransformerLayer.py：
+    在5的基础上添加Transformer Layer的"行结构感知模块"，然后"先与行级语义特征融合，再融合全局特征"
+    注：堆叠形成的三维张量正式 Transformer 的标准输入形式；按照原始代码行堆叠特征，正好符合Transformer的相对位置编码
+
+    （1）行级分类器的参数做了相应调整；
+    7——训练验证测试可一体化；添加Top-5% Acc、Top-10% Acc指标
+
+7、Fun_Line_VD_Trans+PosEncoding.py：
+    在6的基础上，添加了  可学习的相对位置编码（行号信息），显式地建模行的相对位置关系，然后先与行语义特征 相加 后，再输入Transformer
+    得到的 行结构特征与行语义特征 拼接降维，再与全局进行拼接
+    2025年9月18日——新修改，训练验证、测试阶段流程一体化，测试日志续写到训练日志文件中。
+    9月26日——损失函数部分添加可学习的参数α + Top-5% Acc、Top-10% Acc
+
+8、Fun_Line_VD_TransformerLayer_AllCat.py：
+    在6的基础上，将三种特征融合方式全部改为拼接
+    7——训练验证测试可一体化；添加Top-5% Acc、Top-10% Acc指标
+
+9、Fun_Line_VD_CodeT5_Attention.py:
+    在5（只有行级语义特征 和 全局特征）的基础上融合方式改为交叉注意力融合机制
+    行级分类头输入维度：2*hidden——>hidden
+    1、多头注意力机制：8个注意力头；2、函数级特征作为Q，行级语义特征作为K、V；
+    3、残差连接，保持原始行级特征信息
+    7——训练验证测试可一体化；添加Top-5% Acc、Top-10% Acc指标
+
+
+10、Fun_Line_VD_Trans+Pos_CodeT5+.py:
+    在7的基础上，改用CodeT5+预训练模型，“codet5p-110m-embedding” 这种专用于句向量/代码片段向量的检查点，应该直接用它返回的单向量——“CodeT5+ 110M Embedding”本质上
+    就是“专门产出一句话级/函数级单向量表示”的模型，不是通用的 T5 编码器；它的前向结果已经是投影+归一化后的最终向量，因此不再需要也不应该再去取 encoder.last_hidden_state 做加权平均
+
+
+11、FLVD_A+B_Then_C_CrossAttention.py：
+    在7的基础上，将行语义（A）与行结构（B）先按位相加，结果作为Q，再与全局（C）作为K、V，进行交叉融合
+
+12、FLVD_Structural+Global.py：
+    在7的基础上，只是用 结构特征和全局特征 进行 拼接融合
+
+13、FLVD_AC+Cross_AB+Cross_EF+Cross.py
+    在7的基础上，现有行语义（B）、行结构（C）以及全局语义（A）三种特征，AB交叉得到E，AC交叉得到F，最后EF交叉得到最终G，G用于行级漏洞定位
+
+14、12.30——小论文：统计BigVul数据集相关信息：1、漏洞类型的分布情况：BigVul_Information_Count.py；
+
+15、FLVD_Multi-Task_To_Single-Task.py：
+    1.19——修改损失函数，函数级权重α改为0，将多任务学习——>单任务学习；
+
+16、FuncVD-UsePreTrainModel-FineTune目录下
+    添加CodeT5、CodeT5P、Unixcode微调进行函数级漏洞检测
+
+
+
+
+

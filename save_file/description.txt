@@ -1,0 +1,1 @@
+The model and training log(.txt file) are saved in this directory.

@@ -58,8 +58,8 @@ python FLVD_Trans+PosEncoding_NoTwoStageFusion.py
 ```
 ## Step5: Cross-project Experiment
 If you wish to replicate this part of the experiment, please prepare the Cross-project dataset from the Data preprocessing stage in advance,and carry out the following instructions.
-'''
-cd .\src
+```
+cd .\src\
 python FLVD_Trans+Pos_Cross-project.py
-'''
+```
 

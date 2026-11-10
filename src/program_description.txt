@@ -1,4 +1,4 @@
-数据集：new目录下：Fun_Lines_dataset——未添加func_after、flaw_lines、flaw_lines_index信息
+数据集：data目录下：Fun_Lines_dataset——未添加func_after、flaw_lines、flaw_lines_index信息
                 Most_Information_Dateset——添加上述信息用于复现论文代码
 -----------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------
@@ -43,6 +43,7 @@ models_IoU_metrics_2：IoU改用混淆矩阵计算 + 权重衰减0.1 + hid->128 
     得到的 行结构特征与行语义特征 拼接降维，再与全局进行拼接
     2025年9月18日——新修改，训练验证、测试阶段流程一体化，测试日志续写到训练日志文件中。
     9月26日——损失函数部分添加可学习的参数α + Top-5% Acc、Top-10% Acc
+    2026/11/7——添加plot_fp_analysis.py脚本分析函数级FP样本中误报行的分布情况：python plot_fp_analysis.py --dir "…\func_fp_line_analysis_….csv" --outdir "…"
 
 8、Fun_Line_VD_TransformerLayer_AllCat.py：
     在6的基础上，将三种特征融合方式全部改为拼接
@@ -77,8 +78,62 @@ models_IoU_metrics_2：IoU改用混淆矩阵计算 + 权重衰减0.1 + hid->128 
 
 16、FuncVD-UsePreTrainModel-FineTune目录下
     添加CodeT5、CodeT5P、Unixcode微调进行函数级漏洞检测
+    2026/11/2 为这几个函数级微调实验添加五折交叉验证实验
+python Only_FunVD_CodeT5_5fold-cv.py \
+  2>&1 | tee /data/prqu/prqu_files/save_file/FuncVD-CodeT5_5fold-cv/run.log
 
+17、Fun_Line_VD_Trans+Pos_dataset_split_With_Project.py
+    merge_datasets_and_count_projects.py
+    split_and_extract_unbalanced_dataset.py
+    作用：重新处理数据集，按照每个样本的project类型，划分train、val、test
+    1）合并Bigvul原始的train、val、test，并统计每种project下的样本数量：python merge_datasets_and_count_projects.py
+    2）挑选样本数量占10%的类型作为val、test，其他全作为train
+    3）按照新的数据集划分train、val、test，保留+构造需要的列信息并另存
+        python split_and_extract_unbalanced_dataset.py
+    4）epoch = 10，新数据集重新训练：python split_and_extract_unbalanced_dataset.py
 
+18、efficiency目录下：添加训练时成本、推理时间、内存消耗等消耗指标
+    训练成本跟着 python Fun_Line_VD_Trans+Pos_dataset_split_With_Project.py 自动保持在.tsv文件中；
+    其余指标要等训练脚本跑完（至少跑完第 1 轮、存下 checkpoint）后，再单独执行测量脚本。
+cd /data/prqu/prqu_files/src/efficiency
+python measure_efficiency.py \
+  --model_script "/data/prqu/prqu_files/src/FLVD_Trans+Pos_5-fold-cross-validation.py" \
+  --checkpoint "/data/prqu/prqu_files/save_file/cv_5fold_Trans+Pos_balanced/fold_4/models/epoch_044__f1_0.4569.pth" \
+  --test_csv  "/data/prqu/prqu_files/data/Most_Information_Dataset/test_balanced.csv" \
+  --train_csv "/data/prqu/prqu_files/data/Most_Information_Dataset/train_balanced.csv" \
+  --out_dir   "/data/prqu/prqu_files/save_file/cv_5fold_Trans+Pos_balanced/fold_4/"
 
+19、五折交叉验证实验 + 均衡cross-project实验：
+    1）五折交叉验证实验：50 epochs，使用原均衡数据集
+    2）构建跨项目、均衡数据集：python build_cross_project_balanced_dataset.py                      # 正式生成
+        跑跨项目实验（仅需替换数据集路径），python FLVD_Trans+Pos_Cross-project.py
+        训练成本结果：./save_file/training_cost_training_logs_Trans+PosEncoding_Cross-project-dataset.tsv
+        推理成本结果：inference_cost_training_logs_Trans+PosEncoding_Cross-project-dataset.tsv
+python measure_efficiency.py \
+  --model_script "/data/prqu/prqu_files/src/FLVD_Trans+Pos_Cross-project.py" \
+  --checkpoint "/data/prqu/prqu_files/save_file/models_Trans+PosEncoding_Cross-project-dataset/epoch_041__f1_0.4784.pth" \
+  --test_csv  "/data/prqu/prqu_files/data/Cross-project_Balanced-dataset/test.csv" \
+  --train_csv "/data/prqu/prqu_files/data/Cross-project_Balanced-dataset/train.csv" \
+  --out_dir   "/data/prqu/prqu_files/save_file/models_Trans+PosEncoding_Cross-project-dataset/"
 
+20、1)FLVD_Trans+PosEncoding_NoTwoStageFusion.py：
+    特征融合方式：要求行级最终特征不与函数级特征融合，仅仅使用行级最终特征进行漏洞定位
+    2)FLVD_NoTrans+PosEncoding.py:
+    仅去掉Transformer层，做消融实验
+    3)Fun_Line_VD_Trans+PosEncoding_With-Unixcoder.py
+    将所有codet5_base模型替换成Unixcoder模型对比效果
 
+21、2026/10/29为Fun_Line_VD_Trans+PosEncoding.py进一步统计函数级FP的样本中误报的行数
+python func_fp_line_analysis.py \
+  --checkpoint /data/prqu/prqu_files/save_file/models_metrics_modified_Trans+PosEncoding_NewDateset/epoch_042__f1_0.4623.pth \
+  --device     cuda:0
+# 可选参数
+#   --test_csv   测试集路径（默认即主实验的 test_balanced.csv）
+#   --out_xlsx   输出 Excel 路径（默认 <out_dir>/func_fp_line_analysis_<ckpt>_<时间戳>.xlsx）
+#   --device     cuda:0 / cuda:1 / cpu
+#   --max_samples 200   先跑 200 条做冒烟测试
+
+22、LineVD跨项目实验数据集提取：
+python LineVD_build_cross_project_balanced_dataset.py \
+    --input_file /data/prqu/prqu_files/data/Most_Information_UnbalancedDataset/merged_dataset.csv \
+    --drop_columns files_changed

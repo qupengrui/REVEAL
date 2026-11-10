@@ -30,16 +30,16 @@ CONFIG = {
     "batch_size": 16,
     "lr": 1e-5,
     "epochs": 50,
-    "device": torch.device(f"cuda:{device_ids[1]}" if torch.cuda.is_available() else "cpu"),
+    "device": torch.device(f"cuda:{device_ids[0]}" if torch.cuda.is_available() else "cpu"),
 
     # 损失函数相关参数
     "alpha": 0.6,              # 函数级损失权重初始值
     "learnable_alpha": True,   # 是否使用可学习的alpha参数
 
-    "log_dir": "/data/prqu/prqu_files/dir_logs_test",  # TensorBoard日志路径
-    "log_file": "/data/prqu/prqu_files/save_file/training_logs_Trans+PosEncoding_NewDataset_learnable_alpha.txt",  # 训练日志路径
+    "log_dir": "/data/prqu/prqu_files/dir_logs_test_2",  # TensorBoard日志路径
+    "log_file": "/data/prqu/prqu_files/save_file/training_logs_Trans+PosEncoding_Cross-project-dataset.txt",  # 训练日志路径
     "save_file": "/data/prqu/prqu_files/save_file",  # 结果保存目录
-    "model_dir": "/data/prqu/prqu_files/save_file/models_metrics_modified_Trans+PosEncoding_NewDateset",
+    "model_dir": "/data/prqu/prqu_files/save_file/models_Trans+PosEncoding_Cross-project-dataset",
     "max_saved_models": 1  # 最大保存模型数量
 }
 
@@ -833,8 +833,8 @@ def train_epoch(model, dataloader, optimizer, criterion, scheduler, device, epoc
         print("函数预测分布：", np.unique(func_valid_preds, return_counts=True))
         print_line_debug_info(batch_line_preds, batch_line_labels)
 
-        # if batch_idx >= 10:
-        #     break
+        if batch_idx >= 3:
+            break
 
     # 关闭训练进度条
     pbar.close()
@@ -951,8 +951,8 @@ def evaluate(model, dataloader, criterion, device, epoch, writer, mode='val'):
             print("函数预测分布：", np.unique(func_valid_preds, return_counts=True))
             print_line_debug_info(batch_line_preds, batch_line_labels)
 
-            # if batch_idx >= 10:
-            #     break
+            if batch_idx >= 3:
+                break
 
         # 关闭验证进度条
         pbar.close()
